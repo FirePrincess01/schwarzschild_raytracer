@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
 
-# set(CMAKE_TOOLCHAIN_FILE "${CMAKE_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake" CACHE STRING "Vcpkg toolchain file")
-
 # Create the project
 project("schwarzschild_raytracer" CXX)
 
@@ -34,18 +32,7 @@ file(GLOB SOURCE_FILES CONFIGURE_DEPENDS
 
 target_sources(${PROJECT_NAME} PRIVATE ${SOURCE_FILES})
 
-# find_package(GLEW REQUIRED)
-# target_link_libraries(${PROJECT_NAME} PRIVATE GLEW::GLEW)
-
-
-# target_include_directories(${PROJECT_NAME} PRIVATE
-#     "${CMAKE_SOURCE_DIR}/vcpkg/installed/x64-windows-static/include"
-# )
-
-# target_link_directories(${PROJECT_NAME} PRIVATE
-#     "${CMAKE_SOURCE_DIR}/vcpkg/installed/x64-windows-static/lib"
-# )
-
+# link libraries
 find_package(GLUT REQUIRED)
 target_link_libraries(${PROJECT_NAME} PRIVATE GLUT::GLUT)
 
@@ -55,8 +42,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE GLEW::GLEW)
 find_package(soil CONFIG REQUIRED)
 target_link_libraries(${PROJECT_NAME} PRIVATE soil)
 
-# target_link_libraries(${PROJECT_NAME} PRIVATE
-#     glew32
-#     # freeglut
-#     soil
-# )
+# copy assets to exe
+add_custom_command(
+    TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/assets
+            $<TARGET_FILE_DIR:${PROJECT_NAME}>
+)
