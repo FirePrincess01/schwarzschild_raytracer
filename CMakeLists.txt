@@ -38,16 +38,25 @@ target_sources(${PROJECT_NAME} PRIVATE ${SOURCE_FILES})
 # target_link_libraries(${PROJECT_NAME} PRIVATE GLEW::GLEW)
 
 
-target_include_directories(${PROJECT_NAME} PRIVATE
-    "${CMAKE_SOURCE_DIR}/vcpkg/installed/x64-windows-static/include"
-)
+# target_include_directories(${PROJECT_NAME} PRIVATE
+#     "${CMAKE_SOURCE_DIR}/vcpkg/installed/x64-windows-static/include"
+# )
 
-target_link_directories(${PROJECT_NAME} PRIVATE
-    "${CMAKE_SOURCE_DIR}/vcpkg/installed/x64-windows-static/lib"
-)
+# target_link_directories(${PROJECT_NAME} PRIVATE
+#     "${CMAKE_SOURCE_DIR}/vcpkg/installed/x64-windows-static/lib"
+# )
 
-target_link_libraries(${PROJECT_NAME} PRIVATE
-    glew32
-    # freeglut
-    soil
-)
+find_package(GLUT REQUIRED)
+target_link_libraries(${PROJECT_NAME} PRIVATE GLUT::GLUT)
+
+find_package(GLEW REQUIRED)
+target_link_libraries(${PROJECT_NAME} PRIVATE GLEW::GLEW)
+
+find_package(soil CONFIG REQUIRED)
+target_link_libraries(${PROJECT_NAME} PRIVATE soil)
+
+# target_link_libraries(${PROJECT_NAME} PRIVATE
+#     glew32
+#     # freeglut
+#     soil
+# )
