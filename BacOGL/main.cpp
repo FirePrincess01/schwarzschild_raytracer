@@ -8,6 +8,8 @@
 #include <fstream>
 #include <sstream>
 #include <ctime>
+#include "string_view"
+#include "filesystem"
 #define WINDOW_TITLE_PREFIX "Schwarzschild"
 
 const int RASTER_RES = 2000;
@@ -35,7 +37,7 @@ RasterTex;
 
 
 //Move to Render!!
-float* mat1, *mat2, *mat3, *psiFactor, *rasterFun, *fov, *ratio;
+float* mat1, *mat2, *mat3, *psiFactor, *rasterFun, *fov, *ratio_;
 Render* rayTracer;
 
 double R = 10;
@@ -71,7 +73,7 @@ void IdleFunction(void);
 void Cleanup(void);
 void CreateVBO(void);
 void DestroyVBO(void);
-void CreateShaders(void);
+void CreateShaders(string const & fragmentShaderFileName);
 void DestroyShaders(void);
 void initRayTracer(void);
 std::string loadFile(const char *fname);
@@ -105,16 +107,31 @@ void initRayTracer()
 	*psiFactor = 0;
 	fov = new float;
 	*fov = M_PI_2*0.8;
-	ratio = new float;
-	*ratio = ((float)CurrentWidth) / CurrentHeight;
+	ratio_ = new float;
+	*ratio_ = ((float)CurrentWidth) / CurrentHeight;
 	rayTracer->control('2');
 }
 
 void Initialize(int argc, char* argv[])
 {
+	filesystem::path const exePath = filesystem::path(argv[0]).parent_path();
+
 	string filename;
-	cout << "Enter filename" << endl;
-	cin >> filename;
+	if(argc > 1) {
+		filename = argv[1];
+	}
+	else {
+		// use default image
+		auto const defaultImageName = "eso0932a.jpg";
+		filename = (exePath / defaultImageName).string();
+	}
+
+	auto const framgentShaderDefaultName = "Frag.glsl";
+	auto const fragmentShaderFileName = (exePath / framgentShaderDefaultName).string();
+
+	cout << "filename: " << filename << endl;
+	cout << "fragment shader: " << fragmentShaderFileName << endl;
+
 
 	GLenum GlewInitResult;
 
@@ -138,7 +155,7 @@ void Initialize(int argc, char* argv[])
 		glGetString(GL_VERSION)
 		);
 
-	CreateShaders();
+	CreateShaders(fragmentShaderFileName);
 	CreateVBO();
 
 	loadTexture(&filename[0]);
@@ -189,7 +206,7 @@ void ResizeFunction(int Width, int Height)
 {
 	CurrentWidth = Width;
 	CurrentHeight = Height;
-	*ratio = ((float)CurrentWidth) / CurrentHeight;
+	*ratio_ = ((float)CurrentWidth) / CurrentHeight;
 	glViewport(0, 0, CurrentWidth, CurrentHeight);
 }
 
@@ -216,7 +233,7 @@ void RenderFunction(void)
 	glUniform1f(glGetUniformLocation(ProgramId, "beta"), *psiFactor);
 	//glUniform1fv(glGetUniformLocation(ProgramId, "raster"), RASTER_RES, rasterFun);
 	glUniform1f(glGetUniformLocation(ProgramId, "fov"), *fov);
-	glUniform1f(glGetUniformLocation(ProgramId, "ratio"), *ratio);
+	glUniform1f(glGetUniformLocation(ProgramId, "ratio"), *ratio_);
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_1D, RasterTex);
 	glTexImage1D(GL_TEXTURE_1D, 0, GL_RG32F, RASTER_RES, 0, GL_RG, GL_FLOAT, rasterFun);
@@ -335,7 +352,7 @@ void DestroyVBO(void)
 	}
 }
 
-void CreateShaders(void)
+void CreateShaders(string const & fragmentShaderFileName)
 {
 	GLenum ErrorCheckValue = glGetError();
 
@@ -343,7 +360,7 @@ void CreateShaders(void)
 	glShaderSource(VertexShaderId, 1, &VertexShader, NULL);
 	glCompileShader(VertexShaderId);
 
-	std::string fragmentShader = loadFile("Frag.glsl");
+	std::string fragmentShader = loadFile(fragmentShaderFileName.c_str());
 	if (fragmentShader.empty())
 	{
 		cout << "fooo no shader" << endl;
