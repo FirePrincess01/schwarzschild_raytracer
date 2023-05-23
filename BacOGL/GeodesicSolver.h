@@ -1,5 +1,3 @@
-#ifndef GEODESICSOLVER_H_
-#define GEODESICSOLVER_H_
 #pragma once
 
 #include "RasterFunction.h"
@@ -41,7 +39,7 @@ class GeodesicSolver
 		bool differentSides3R_2 = ((rStart < 3 * schwarzR / 2) ^ (surfaceR < 3 * schwarzR / 2))
 			&& fabs(rStart - 3 * schwarzR / 2) > SINGULARITY_BOUND;
 		
-		//Some cases where the geodesis won´t hit the surface
+		//Some cases where the geodesis won't hit the surface
 		if ((!innerView && !surfaceOutside) ||
 			(!outside && surfaceOutside && E < 0) ||
 			(barrier3R_2 && differentSides3R_2) ||
@@ -92,7 +90,7 @@ class GeodesicSolver
 			nextUBar = currentUBar + step * ((-currentU + R3_2 * currentU*currentU) / 6 +
 				(-aU + R3_2 * aU*aU) / 3 + (-bU + R3_2 * bU*bU) / 3 + (-cU + R3_2 * cU*cU) / 6);
 
-			//check if the tray has passed through the surface do some newton
+			//check if the ray has passed through the surface do some newton
 			if ((nextU > surfaceU) ^ (u > surfaceU))
 			{
 				double value, derivitive, newtonStep;
@@ -177,5 +175,3 @@ public:
 		}
 	}
 };
-
-#endif //!GEODESICSOLVER_H_

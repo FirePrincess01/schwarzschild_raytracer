@@ -1,5 +1,3 @@
-#ifndef TRANSUTILITIES_H_
-#define TRANSUTILITIES_H_
 #pragma once
 
 #define _USE_MATH_DEFINES
@@ -119,5 +117,3 @@ public:
 		return acos(scalar);
 	}
 };
-
-#endif //!TRANSUTILITIES_H_

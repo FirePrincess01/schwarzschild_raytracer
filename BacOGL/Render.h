@@ -1,6 +1,4 @@
 #pragma once
-#ifndef RENDER_H_
-#define RENDER_H_
 
 //#include "DisplayHandler.h"
 //#include "PixelTransformer.h"
@@ -14,6 +12,7 @@
 class Render
 {
 	const double CAMERA_STEP = M_PI / 800;
+	
 
 	Spectator spec;
 	//Benchmark* geodesicBench, *matricesBench;
@@ -132,7 +131,7 @@ public:
 		return spec.isSingular();
 	}
 
-	//builds one frame and displays it
+	//prepares all data needed to render a frame
 	void prepareData(float* firstM, float* secondM, float* thirdM, float* psiFactor, float* raster)
 	{
 		double psi;
@@ -142,7 +141,5 @@ public:
 		*psiFactor = sqrtf((psi - 1) / psi);
 	}
 };
-
-#endif // !RENDER_H_
 
 

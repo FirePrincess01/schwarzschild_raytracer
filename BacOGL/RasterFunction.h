@@ -5,8 +5,6 @@
 *      Author: Pingu
 */
 
-#ifndef RASTERFUNCTION_H_
-#define RASTERFUNCTION_H_
 #pragma once
 
 #define _USE_MATH_DEFINES
@@ -19,8 +17,7 @@ class RasterFunction180
 
 	RasterFunction180(const RasterFunction180 & a) { RasterFunction180(2); }
 public:
-	//enum { NO_VALUE = 0xDEADBEEF};
-	static double NO_VALUE;
+	static constexpr double NO_VALUE = -100000.;
 
 	//Creates an empty Raster Function with a specified number of nodes.
 	//Precondition: inNrNodes must be greater than 2
@@ -77,7 +74,7 @@ public:
 	}
 
 	//returns the value in the node with the number nr
-	//Attention! numeration starts with 0 like in arrays
+	//numeration starts with 0 like in arrays
 	double valueAt(unsigned int nr)
 	{
 		if(nr < nrNodes)
@@ -109,15 +106,12 @@ public:
 		os << endl;
 	}
 
+	//OpenGL didnt work with a plain float array for whatever reason, so i had to use a vec2 array
 	void toFloatArray(float* in)
 	{
 		for (unsigned int i = 0; i < nrNodes; i++)
 			in[2 * i + 1] = in[2 * i] = values[i];//OGL Hack!!
 	}
 };
-
-double RasterFunction180::NO_VALUE = -100000.;  //Modify in main!
-
-#endif // !RasterFunction_h_
 
 

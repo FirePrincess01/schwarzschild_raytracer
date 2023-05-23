@@ -1,5 +1,3 @@
-#ifndef BENCHMARK_H_
-#define BENCHMARK_H_
 #pragma once
  
 #include <omp.h>
@@ -39,7 +37,4 @@ public:
 	}
 
 };
-
-
-#endif //! BENCHMARK_H_
 

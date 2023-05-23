@@ -1,5 +1,4 @@
-#ifndef SPECTATOR_H_
-#define SPECTATOR_H_
+#pragma once
 
 #include <math.h>
 #include "RotMatrix3D.h"
@@ -403,18 +402,3 @@ public:
 		geodesics.toFloatArray(geodesicsTrans);
 	}
 };
-
-#endif // !SPECTATOR_H_
-
-
-/*
-	static void normSpectator(double R, double r, Vec2D spectator)
-	{
-		double normSquare = -spectator[0] * spectator[0] * h(R, r) +
-			spectator[1] * spectator[1] / h(R, r);
-		if (normSquare >= 0)
-			cout << "Error: not a timelike Spectator" << endl;
-		spectator[0] /= sqrt(-normSquare);
-		spectator[1] /= sqrt(-normSquare);
-	}*/
-

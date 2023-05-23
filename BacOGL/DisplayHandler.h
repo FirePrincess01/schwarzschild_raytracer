@@ -1,5 +1,3 @@
-#ifndef DISPLAYHANDLER_H_
-#define DISPLAYHANDLER_H_
 #pragma once
 
 #define _USE_MATH_DEFINES
@@ -49,6 +47,4 @@ public:
 			(y - heightHalf) * (y - heightHalf)) * scale);
 	}
 };
-
-#endif // !DISPLAYHANDLER_H_
 

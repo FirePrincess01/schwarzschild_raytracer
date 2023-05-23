@@ -1,5 +1,3 @@
-#ifndef ORBIT_H_
-#define ORBIT_H_
 #pragma once
 
 #include <math.h>
@@ -187,5 +185,3 @@ public:
 		return "Instable";
 	}
 };
-
-#endif //!ORBIT_H_

@@ -5,10 +5,6 @@
  *      Author: Pingu
  */
 
-
-
-#ifndef ROTMATRIX3D_H_
-#define ROTMATRIX3D_H_
 #pragma once
 
 #include <iostream>
@@ -28,7 +24,7 @@ public:
 	~RotMatrix3D() {}
 
 	//Default constructor
-	RotMatrix3D(): mat() {}
+	RotMatrix3D(): mat() {setToIdentity();}
 
 	//Initializes a matrix that contains the inputs as columns
 	RotMatrix3D(Vec3D & column1, Vec3D & column2, Vec3D & column3):mat()
@@ -134,7 +130,3 @@ public:
 				in[i * 3 + j] = mat[i][j];
 	}
 };
-
-
-
-#endif /* ROTMATRIX3D_H_ */

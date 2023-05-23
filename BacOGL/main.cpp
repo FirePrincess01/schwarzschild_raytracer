@@ -14,16 +14,17 @@
 
 const int RASTER_RES = 2000;
 
-int
-CurrentWidth = 800,
-CurrentHeight = 600,
-WindowHandle = 0;
+static int CurrentWidth = 800;
+static int CurrentHeight = 600;
+static int WindowHandle = 0;
 
-bool leftMouseButtonActive = false;
-int mousePosX = 0, mousePosY = 0;
-float rotationX = 0, rotationY = 0;
+static bool leftMouseButtonActive = false;
+static int mousePosX = 0;
+static int mousePosY = 0;
+static float rotationX = 0;
+static int rotationY = 0;
 
-unsigned FrameCount = 0;
+static unsigned int FrameCount = 0;
 
 GLuint
 VertexShaderId,
@@ -81,12 +82,9 @@ void loadTexture(const char *picName);
 void mouse(int button, int state, int x, int y);
 void mouseMotion(int x, int y);
 void keyboard(unsigned char key, int x, int y);
-bool DRMCheck();
 
 int main(int argc, char* argv[])
 {
-	//if (!DRMCheck())
-	//	return 1;
 	initRayTracer();
 	Initialize(argc, argv);
 
@@ -97,7 +95,6 @@ int main(int argc, char* argv[])
 
 void initRayTracer()
 {
-	RasterFunction180::NO_VALUE = -10000.;
 	rayTracer = new Render(RASTER_RES, M_PI / 100, R, surfaceR, rStart, FOV);
 	mat1 = new float[9];
 	mat2 = new float[9];
@@ -225,13 +222,11 @@ void RenderFunction(void)
 
 	rayTracer->prepareData(mat1, mat2, mat3, psiFactor, rasterFun);
 	rayTracer->control('0');
-	//cout << rasterFun[0];
 	
 	glUniformMatrix3fv(glGetUniformLocation(ProgramId, "first"), 1, true, mat1);
 	glUniformMatrix3fv(glGetUniformLocation(ProgramId, "second"), 1, true, mat2);
 	glUniformMatrix3fv(glGetUniformLocation(ProgramId, "third"), 1, true, mat3);
 	glUniform1f(glGetUniformLocation(ProgramId, "beta"), *psiFactor);
-	//glUniform1fv(glGetUniformLocation(ProgramId, "raster"), RASTER_RES, rasterFun);
 	glUniform1f(glGetUniformLocation(ProgramId, "fov"), *fov);
 	glUniform1f(glGetUniformLocation(ProgramId, "ratio"), *ratio_);
 	glActiveTexture(GL_TEXTURE1);
@@ -275,7 +270,6 @@ void Cleanup(void)
 	glDeleteTextures(1, &Texture);
 	DestroyShaders();
 	DestroyVBO();
-
 }
 
 void CreateVBO(void)
@@ -363,8 +357,7 @@ void CreateShaders(string const & fragmentShaderFileName)
 	std::string fragmentShader = loadFile(fragmentShaderFileName.c_str());
 	if (fragmentShader.empty())
 	{
-		cout << "fooo no shader" << endl;
-		cin >> CurrentWidth;
+		cout << "fragment shader file is missing" << endl;
 		exit(-1);
 	}
 	const char* fS_CStr = fragmentShader.c_str();
@@ -388,7 +381,6 @@ void CreateShaders(string const & fragmentShaderFileName)
 			"ERROR: Could not create the shaders: %s \n",
 			gluErrorString(ErrorCheckValue)
 			);
-		cin >> CurrentWidth;
 		exit(-1);
 	}
 }
@@ -506,13 +498,4 @@ void mouseMotion(int x, int y) {
 		mousePosX = x;
 		mousePosY = y;
 	}
-}
-
-bool DRMCheck()
-{
-	time_t seconds = time(0);
-	if (1482357786 < seconds && seconds < 1482357786 + 24*60*60)
-		return true;
-	else
-		return false;
 }
