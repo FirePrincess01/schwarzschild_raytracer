@@ -1,3 +1,10 @@
+///
+/// @file	Render.h
+/// @author Cecilia
+/// @date 	3.2016
+///
+/// @copyright MIT Public Licence
+///
 #pragma once
 
 //#include "DisplayHandler.h"
@@ -5,64 +12,88 @@
 //#include "SphereGraphic.h"
 #include "RotMatrix3D.h"
 #include "Spectator.h"
-#include <omp.h>
-
+//#include <omp.h>
 //using namespace cimg_library;
 
+///
+/// @brief  This class acts as intermediate between user controls, GPU Rendering,
+/// 		and the physical model in the Spectator class. 
+///			In a previous iteration it used to perform the image rendering itself.
+///
 class Render
 {
+	//camera turn speed with keyboard controls
 	const double CAMERA_STEP = M_PI / 800;
-	
 
+	//The physical model
 	Spectator spec;
-	//Benchmark* geodesicBench, *matricesBench;
+	//The 3x3 matrices required in the transformation pipeline, saved rowwise
+	float* mat1, *mat2, *mat3;
+	//The interpolation function representing the path of a 180° fan of lightrays
+	float* rasterFun;
+	//A factor used to perform speed abberation
+	float psiFactor;
+	//Key press state variables
+	bool forwardKey, backKey, leftKey, rightKey, upKey, downKey;
 
-	Vec3D controls;
-	Vec2D cameraMove;
+
+	
 	
 public:
-	Render(unsigned int rasterResolution, double lightStep, double R, double inSurfaceR,
-		double rStart, double view) : //geodesicBench(nullptr),
-		//matricesBench(nullptr), 
-		spec(rasterResolution, lightStep)
+	///
+	/// @brief Initialized the class
+	/// @param rasterResolution How many light rays should be simulated
+	/// @param lightStep 		The step size for light ray simulation
+	/// @param R 				Event Horizon radius for the black hole
+	/// @param surfaceR 		Radius of the texture sphere (which is rendered)
+	/// @param rStart 			Starting distance of the observer
+	///
+	Render(const unsigned int rasterResolution = 2000, const double lightStep = M_PI / 100., const double R = 10, const double surfaceR = 500,
+		const double rStart = 25) : spec(rasterResolution, lightStep, Vec3D{ rStart,0.,0. }, R, surfaceR)
 	{
-		Vec3D startPos = { rStart,0,0 };
-		spec.init(startPos, R, inSurfaceR, view);
+		mat1 = new float[9];
+		mat2 = new float[9];
+		mat3 = new float[9];
+		rasterFun = new float[rasterResolution*2];
+		psiFactor = 0;
+		forwardKey = backKey = leftKey = rightKey = upKey = downKey = false;
 		spec.startFreeFall(rStart * 2);
 	}
 
+	/// @brief Destructor
 	~Render()
 	{
-		//delete geodesicBench, matricesBench;
+		delete[] mat1;
+		delete[] mat2;
+		delete[] mat3;
+		delete[] rasterFun;
 	}
 
-	//Moves or views according to the command
-	void control(char command)
+	///
+	/// @brief Handles keyboard inputs
+	///
+	void control(const char command)
 	{
-		controls[0] = 0;
-		controls[1] = 0;
-		controls[2] = 0;
-		cameraMove[0] = 0;
-		cameraMove[1] = 0;
+		Vec2D cameraMove = {0,0};
 		switch (command)
 		{
 		case 'w':
-			controls[0] = 1;
+			forwardKey = true;
 			break;
 		case 's':
-			controls[0] = -1;
+			backKey = true;
 			break;
 		case 'a':
-			controls[1] = 1;
+			leftKey = true;
 			break;
 		case 'd':
-			controls[1] = -1;
+			rightKey = true;
 			break;
 		case 'q':
-			controls[2] = 1;
+			upKey = true;
 			break;
 		case 'e':
-			controls[2] = -1;
+			downKey = true;
 			break;
 		case 't':
 			cameraMove[1] = CAMERA_STEP;
@@ -87,7 +118,7 @@ public:
 			break;
 		case '4':
 			double readL;
-			cout << "Enter spin:" << endl; //some stable orbit estimates
+			cout << "Enter spin:" << endl;
 			cin >> readL;
 			spec.startOrbit(readL);
 			break;
@@ -107,38 +138,118 @@ public:
 	spec.controlCamera(cameraMove[0], cameraMove[1]);
 	}
 
-	void moveCamera(double phi, double theta)
+	///
+	/// @brief Handles keys being release for movement inputs
+	///
+	void releaseButton(const unsigned char command)
+	{
+		switch (command)
+		{
+		case 'w':
+			forwardKey = false;
+			break;
+		case 's':
+			backKey = false;
+			break;
+		case 'a':
+			leftKey = false;
+			break;
+		case 'd':
+			rightKey = false;
+			break;
+		case 'q':
+			upKey = false;
+			break;
+		case 'e':
+			downKey = false;
+			break;
+		}
+	}
+
+	///
+	/// @brief Turns the camera
+	/// @param phi Horizontal angle
+	/// @param theta Vertical angle
+	///
+	void moveCamera(const double phi, const double theta)
 	{
 		spec.controlCamera(phi, theta);
 	}
 
-	//Enables Benchmarking
-	/*void enableBenchmarks()
-	{
-		geodesicBench = new Benchmark("Geodesic Solving");
-		matricesBench = new Benchmark("Calculating transformation matrices");
-		spec.initBenchmarks(geodesicBench, matricesBench);
-	}
-
-	void printBenchmarks(std::ostream& os)
-	{
-		geodesicBench->printReport(os);
-		matricesBench->printReport(os);
-	}*/
-
-	bool isSingular()
+	///
+	/// @brief Returns if the system is at a singularity (event horizon or center of black hole)
+	///
+	bool isSingular() const 
 	{
 		return spec.isSingular();
 	}
 
-	//prepares all data needed to render a frame
-	void prepareData(float* firstM, float* secondM, float* thirdM, float* psiFactor, float* raster)
+	///
+	/// @brief prepares all data needed to render a frame and progresses any position simulations
+	///
+	void prepareData()
 	{
-		double psi;
-
+		Vec3D controls;
+		controls[0] = 0;
+		controls[1] = 0;
+		controls[2] = 0;
+		if (forwardKey)
+			controls[0] += 1;
+		if (backKey)
+			controls[0] += -1;
+		if (leftKey)
+			controls[1] += 1;
+		if (rightKey)
+			controls[1] += -1;
+		if (upKey)
+			controls[2] += 1;
+		if (downKey)
+			controls[2] += -1;
 		spec.prepare(controls);
-		spec.outputResults(firstM, secondM, thirdM, psi, raster);
-		*psiFactor = sqrtf((psi - 1) / psi);
+
+		double psi;
+		spec.outputResults(mat1, mat2, mat3, psi, rasterFun);
+		psiFactor = sqrtf((psi - 1) / psi);
+	}
+
+	///
+	/// @brief Returns a pointer to the first Matrix (Display to movement direction)
+	///
+	const float* getMat1() const
+	{
+		return mat1;
+	}
+
+	///
+	/// @brief Returns a pointer to the second Matrix (Movement direction, to central)
+	///
+	const float* getMat2() const
+	{
+		return mat2;
+	}
+
+	///
+	/// @brief Returns a pointer to the third Matrix (Inverse central to sphere)
+	///
+	const float* getMat3() const
+	{
+		return mat3;
+	}
+
+	///
+	/// @brief Returns a pointer to the interpolation function representing the path of a 180° fan of lightrays
+	///
+	const float* getRasterFun() const
+	{
+		return rasterFun;
+	}
+
+	///
+	/// @brief Returns a pointer to the factor used to perform speed abberation
+	/// 
+	const float getPsiFactor() const
+	{
+		return psiFactor;
 	}
 };
 

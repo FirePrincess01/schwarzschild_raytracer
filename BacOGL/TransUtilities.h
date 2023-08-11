@@ -1,45 +1,57 @@
+///
+/// @file	TransUtilities.h
+/// @author Cecilia
+/// @date 	3.2016
+///
+/// @copyright MIT Public Licence
+///
 #pragma once
 
 #define _USE_MATH_DEFINES
 #include "RotMatrix3D.h"
 
+///
+/// @brief A collection of 3D Vector functions needed for the application, including polar transformations
+/// @note Some of the functions are no longer in use as they are now performed on the GPU.
+///			The whole program uses exclusively radians.
+///		  	Any used polar coordinates are either (r, phi, theta) or (phi, theta) with theta in [-pi/2, pi/2] being the elevation
+///
 class TransUtilities
 {
 public:
-	//Transforms a sphere vector with radius 1 to carthesic coordinates
-	void toCarthesic(Vec2D & pVec, Vec3D & cartVec)
+	///
+	/// @brief Transforms spherical coordinates (phi, theta) with radius 1 to carthesic coordinates
+	///
+	void toCarthesic(const Vec2D & pVec, Vec3D & cartVec) const 
 	{
 		cartVec[0] = cos(pVec[0])*cos(pVec[1]);
 		cartVec[1] = sin(pVec[0])*cos(pVec[1]);
 		cartVec[2] = sin(pVec[1]);
 	}
 
-	//Transforms a carthesic Vector to sphere coordinates
-	//r is assumed to be 1.
-	void toPolar(Vec3D & cartVec, Vec2D & pVec)
-	{
-		pVec[0] = atan2(cartVec[1], cartVec[0]);
-		pVec[1] = asin(cartVec[2]);
-	}
-
-	//Transforms the given polar coordinates to different polar coordinates
-	//specified by rotator
-	//This function and all dependencies are GPU critical
-	void polarTransform(Vec2D & original, Vec3D & dummy1, Vec3D & dummy2, RotMatrix3D & rotator)
-	{
-		toCarthesic(original, dummy1);
-		rotator.transform(dummy1, dummy2);
-		toPolar(dummy2, original);
-	}
-
-	void toCarthesic(Vec3D & pVec, Vec3D & cartVec)
+	///
+	/// @brief Transforms spherical coordinates (r,phi, theta) to carthesic coordinates
+	///
+	void toCarthesic(const Vec3D & pVec, Vec3D & cartVec) const 
 	{
 		cartVec[0] = pVec[0] * cos(pVec[1])*cos(pVec[2]);
 		cartVec[1] = pVec[0] * sin(pVec[1])*cos(pVec[2]);
 		cartVec[2] = pVec[0] * sin(pVec[2]);
 	}
 
-	void toPolar(Vec3D & cartVec, Vec3D & pVec)
+	///
+	/// @brief Transforms a carthesic Vector to spherical coordinates (r discarded)
+	///
+	void toPolar(const Vec3D & cartVec, Vec2D & pVec) const 
+	{
+		pVec[0] = atan2(cartVec[1], cartVec[0]);
+		pVec[1] = asin(cartVec[2]);
+	}
+
+	///
+	/// @brief Transforms a carthesic Vector to spherical coordinates
+	///
+	void toPolar(const Vec3D & cartVec, Vec3D & pVec) const 
 	{
 		pVec[0] = sqrt(cartVec[0] * cartVec[0] + cartVec[1] * cartVec[1] 
 			+ cartVec[2] * cartVec[2]);
@@ -47,10 +59,24 @@ public:
 		pVec[2] = asin(cartVec[2] / pVec[0]);
 	}
 
-	//saves the matrix of basis vectors with third vector equal to Axes
-	//to the target matrix.
-	//Not GPU critical
-	void yieldTransMatrix(Vec2D & axis, RotMatrix3D & target)
+	///
+	/// @brief Transforms inOutPolar with the rotation defined by rotator
+	/// @param dummy1, dummy2 are there to avoid repeatedly allocating memory inside the function, this was believed to improve performance at the time
+	///
+	void polarTransform(Vec2D & inOutPolar, Vec3D & dummy1, Vec3D & dummy2, const RotMatrix3D & rotator) const 
+	{
+		toCarthesic(inOutPolar, dummy1);
+		rotator.transform(dummy1, dummy2);
+		toPolar(dummy2, inOutPolar);
+	}
+
+
+	///
+	/// @brief Yields a rotation matrix, which transforms the z coordinate to 'axis' and the x coordinate 90° down from that.
+	/// @param axis the direction z gets transformed into
+	/// @param target Where the resulting matrix gets saved
+	///
+	void yieldTransMatrix(const Vec2D & axis, RotMatrix3D & target) const 
 	{
 		Vec3D z;
 		toCarthesic(axis, z);
@@ -71,9 +97,12 @@ public:
 		target.clearArtifacts();
 	}
 
-	//Produces the Plane tilt Matrix
-	//A Rotation in x, y
-	void yieldTiltMatrix(double phi, RotMatrix3D & target)
+
+	///
+	/// @brief Yields a rotation matrix in the x,y plane by angle 'phi'
+	/// @note Used to match the orbit plane with the y,z plane
+	///
+	void yieldTiltMatrix(const double phi, RotMatrix3D & target) const 
 	{
 		Vec3D x, y, z;
 		y[1] = x[0] = cos(phi);
@@ -87,8 +116,11 @@ public:
 		target.clearArtifacts();
 	}
 
-	//Used in Rotating into movement direction in the yz plane
-	void yieldPlaneRotMatrix(double phi, RotMatrix3D & target)
+	///
+	/// @brief Yields a rotation matrix in the y,z plane by angle 'phi' to align z with the velocity vector
+	/// @note The angle between center direction and velocity vector depends on the observer
+	///
+	void yieldPlaneRotMatrix(const double phi, RotMatrix3D & target) const 
 	{
 		Vec3D x, y, z;
 		y[1] = z[2] = cos(phi);
@@ -100,18 +132,23 @@ public:
 		target.clearArtifacts();
 	}
 
-	//saves axb to result
-	void crossProduct(const Vec3D & a, const Vec3D & b, Vec3D & result)
+	///
+	/// @brief calculates the cross product of a and b, which is saved in result
+	///
+	void crossProduct(const Vec3D & a, const Vec3D & b, Vec3D & result) const 
 	{
 		result[0] = a[1] * b[2] - a[2] * b[1];
 		result[1] = a[2] * b[0] - a[0] * b[2];
 		result[2] = a[0] * b[1] - a[1] * b[0];
 	}
 
-	double angle(const Vec3D & a, const Vec3D & b)
+	///
+	/// @brief Calculates the angle between a and b
+	///
+	double angle(const Vec3D & a, const Vec3D & b) const 
 	{
 		double scalar = a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-		if (fabs(scalar) > 1e-10)
+		if (fabs(scalar) > 0)
 			scalar /= sqrt((a[0] * a[0] + a[1] * a[1] + a[2] * a[2]) *
 				(b[0] * b[0] + b[1] * b[1] + b[2] * b[2]));
 		return acos(scalar);

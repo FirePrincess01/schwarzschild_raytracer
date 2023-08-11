@@ -1,3 +1,13 @@
+///
+/// @file	main.cpp
+/// @author Cecilia
+/// @date 	3.2016
+///
+/// @copyright MIT Public Licence
+/// @note FirePrincess helped with setting up cMake and vcpkg for this project.
+///			The git history of the original project was removed for privacy reasons.
+///
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -12,20 +22,32 @@
 #include "filesystem"
 #define WINDOW_TITLE_PREFIX "Schwarzschild"
 
+//Number of rays simulated in the light ray fan for interpolation
 const int RASTER_RES = 2000;
+//Field of view, 72° by default
+static float fov = M_PI_2*0.8;
+//Radius of the event horizon for the black hole
+static double R = 10;
+//Starting distance to the black hole
+static double rStart = 25;
+//Radius of the Texture sphere, used to simulate a background in this case
+static double surfaceR = 500;
 
+//Parameters for the window
 static int CurrentWidth = 800;
 static int CurrentHeight = 600;
 static int WindowHandle = 0;
+float ratio_;
 
+//Mouse variables
 static bool leftMouseButtonActive = false;
 static int mousePosX = 0;
 static int mousePosY = 0;
-static float rotationX = 0;
-static int rotationY = 0;
 
+//Used to count frames for fps display
 static unsigned int FrameCount = 0;
 
+//GLEW variables
 GLuint
 VertexShaderId,
 FragmentShaderId,
@@ -36,18 +58,13 @@ ColorBufferId,
 Texture,
 RasterTex;
 
-
-//Move to Render!!
-float* mat1, *mat2, *mat3, *psiFactor, *rasterFun, *fov, *ratio_;
+//The computational core of the whole programm
 Render* rayTracer;
-
-double R = 10;
-double FOV = M_PI_2;
-double rStart = 25;
-double surfaceR = 500;
-
+//Used to reset the rayTracer
 bool needsReset = false;
 
+//A simple vertex Shader, that just covers the whole screen.
+//The real work happens in the fragment shader
 const GLchar* VertexShader =
 {
 	"#version 330\n"\
@@ -65,24 +82,41 @@ const GLchar* VertexShader =
 	"}\n"
 };
 
+//Initializes GLEW
 void Initialize(int, char*[]);
+//Initializes the GLEW window
 void InitWindow(int, char*[]);
+//Called when the window is resized
 void ResizeFunction(int, int);
+//Calculates necessary information on the CPU and renders one image on GPU
 void RenderFunction(void);
+//Calculates FPS
 void TimerFunction(int);
 void IdleFunction(void);
+//Cleans up GLEW components
 void Cleanup(void);
+//Creates the rectangle covering the screen
 void CreateVBO(void);
 void DestroyVBO(void);
+//Compiles Vertex and Fragment shaders
 void CreateShaders(string const & fragmentShaderFileName);
 void DestroyShaders(void);
+//Creates and configures the raytraycer class
 void initRayTracer(void);
+//Turns a text file into a string
 std::string loadFile(const char *fname);
+//Loads an image file into the texture buffer
 void loadTexture(const char *picName);
+//Handles mouse clicks
 void mouse(int button, int state, int x, int y);
+//Handles mouse movement
 void mouseMotion(int x, int y);
+//Handles keyboard presses
 void keyboard(unsigned char key, int x, int y);
+//Handles keys being released
+void keyboardUp(unsigned char key, int x, int y);
 
+//Sets up raytracer, GLEW stuff and starts the main loop
 int main(int argc, char* argv[])
 {
 	initRayTracer();
@@ -95,22 +129,15 @@ int main(int argc, char* argv[])
 
 void initRayTracer()
 {
-	rayTracer = new Render(RASTER_RES, M_PI / 100, R, surfaceR, rStart, FOV);
-	mat1 = new float[9];
-	mat2 = new float[9];
-	mat3 = new float[9];
-	rasterFun = new float[RASTER_RES*2];
-	psiFactor = new float;
-	*psiFactor = 0;
-	fov = new float;
-	*fov = M_PI_2*0.8;
-	ratio_ = new float;
-	*ratio_ = ((float)CurrentWidth) / CurrentHeight;
+	rayTracer = new Render(RASTER_RES, M_PI / 100, R, surfaceR, rStart);
+	ratio_ = ((float)CurrentWidth) / CurrentHeight;
+	//The free moving mode with falling velocity is the default
 	rayTracer->control('2');
 }
 
 void Initialize(int argc, char* argv[])
 {
+	//Improved file selection by firePricess
 	filesystem::path const exePath = filesystem::path(argv[0]).parent_path();
 
 	string filename;
@@ -157,8 +184,6 @@ void Initialize(int argc, char* argv[])
 
 	loadTexture(&filename[0]);
 
-
-
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 }
 
@@ -189,12 +214,14 @@ void InitWindow(int argc, char* argv[])
 		exit(EXIT_FAILURE);
 	}
 
+	//Link all functions too GLUT
 	glutReshapeFunc(ResizeFunction);
 	glutDisplayFunc(RenderFunction);
 	glutIdleFunc(IdleFunction);
 	glutTimerFunc(0, TimerFunction, 0);
 	glutCloseFunc(Cleanup);
 	glutKeyboardFunc(keyboard);
+	glutKeyboardUpFunc(keyboardUp);
 	glutMouseFunc(mouse);
 	glutMotionFunc(mouseMotion);
 }
@@ -203,7 +230,7 @@ void ResizeFunction(int Width, int Height)
 {
 	CurrentWidth = Width;
 	CurrentHeight = Height;
-	*ratio_ = ((float)CurrentWidth) / CurrentHeight;
+	ratio_ = ((float)CurrentWidth) / CurrentHeight;
 	glViewport(0, 0, CurrentWidth, CurrentHeight);
 }
 
@@ -215,24 +242,25 @@ void RenderFunction(void)
 	if (needsReset)
 	{
 		delete rayTracer;
-		rayTracer = new Render(RASTER_RES, M_PI / 100, R, surfaceR, rStart, FOV);
+		rayTracer = new Render(RASTER_RES, M_PI / 100, R, surfaceR, rStart);
 		rayTracer->control('2');
 		needsReset = false;
 	}
 
-	rayTracer->prepareData(mat1, mat2, mat3, psiFactor, rasterFun);
+	//Perform calculations
+	rayTracer->prepareData();
 	rayTracer->control('0');
 	
-	glUniformMatrix3fv(glGetUniformLocation(ProgramId, "first"), 1, true, mat1);
-	glUniformMatrix3fv(glGetUniformLocation(ProgramId, "second"), 1, true, mat2);
-	glUniformMatrix3fv(glGetUniformLocation(ProgramId, "third"), 1, true, mat3);
-	glUniform1f(glGetUniformLocation(ProgramId, "beta"), *psiFactor);
-	glUniform1f(glGetUniformLocation(ProgramId, "fov"), *fov);
-	glUniform1f(glGetUniformLocation(ProgramId, "ratio"), *ratio_);
+	//Transfer data to GPU
+	glUniformMatrix3fv(glGetUniformLocation(ProgramId, "first"), 1, true, rayTracer->getMat1());
+	glUniformMatrix3fv(glGetUniformLocation(ProgramId, "second"), 1, true, rayTracer->getMat2());
+	glUniformMatrix3fv(glGetUniformLocation(ProgramId, "third"), 1, true, rayTracer->getMat3());
+	glUniform1f(glGetUniformLocation(ProgramId, "beta"), rayTracer->getPsiFactor());
+	glUniform1f(glGetUniformLocation(ProgramId, "fov"), fov);
+	glUniform1f(glGetUniformLocation(ProgramId, "ratio"), ratio_);
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_1D, RasterTex);
-	glTexImage1D(GL_TEXTURE_1D, 0, GL_RG32F, RASTER_RES, 0, GL_RG, GL_FLOAT, rasterFun);
-
+	glTexImage1D(GL_TEXTURE_1D, 0, GL_RG32F, RASTER_RES, 0, GL_RG, GL_FLOAT, rayTracer->getRasterFun());
 
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	glutSwapBuffers();
@@ -262,6 +290,7 @@ void TimerFunction(int Value)
 	}
 
 	FrameCount = 0;
+	//Update four time a second
 	glutTimerFunc(250, TimerFunction, 1);
 }
 
@@ -436,6 +465,7 @@ void loadTexture(const char *picName)
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, Texture);
 
+	//Load the image to GPU
 	int width = 0;
 	int height = 0;
 	unsigned char* image =
@@ -451,13 +481,14 @@ void loadTexture(const char *picName)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glUniform1i(glGetUniformLocation(ProgramId, "tex"), 0);
 
+	//Create texture for the lightray fan
 	//glGenTextures(1, &RasterTex);
 	RasterTex = textures[1];
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_1D, RasterTex);
-	glTexImage1D(GL_TEXTURE_1D, 0, GL_R32F, RASTER_RES, 0, GL_R, GL_FLOAT, rasterFun);
-	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+	glTexImage1D(GL_TEXTURE_1D, 0, GL_R32F, RASTER_RES, 0, GL_R, GL_FLOAT, rayTracer->getRasterFun());
+	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
+	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
 	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glUniform1i(glGetUniformLocation(ProgramId, "rasterTex"), 1);
@@ -471,9 +502,21 @@ void keyboard(unsigned char key, int x, int y) {
 	case 'p':
 		needsReset = true;
 		break;
+	//Turn it into a neutron star
+	case 'n':
+		surfaceR = 11;
+		needsReset = true;
+		break;
+	default:
+		rayTracer->control(key);
 	}
-	rayTracer->control(key);
+	
 	glutPostRedisplay();
+}
+
+void keyboardUp(unsigned char key, int x, int y)
+{
+	rayTracer->releaseButton(key);
 }
 
 
@@ -492,10 +535,8 @@ void mouse(int button, int state, int x, int y) {
 void mouseMotion(int x, int y) {
 	if (leftMouseButtonActive) {
 		rayTracer->moveCamera(0.01*(mousePosX - x), 0.01*(mousePosY - y));
-		rotationX += mousePosX - x;
-		rotationY += mousePosY - y;
-
 		mousePosX = x;
 		mousePosY = y;
 	}
+
 }

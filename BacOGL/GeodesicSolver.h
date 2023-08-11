@@ -1,41 +1,62 @@
+///
+/// @file	GeodesicSolver.h
+/// @author Cecilia
+/// @date 	3.2016
+///
+/// @copyright MIT Public Licence
+///
 #pragma once
 
 #include "RasterFunction.h"
 #include <math.h>
-#include <omp.h>
+//#include <omp.h>
 
+///
+/// @brief This class simulates an 180° fan of light rays and calculates the angle travelled by each ray until the texture sphere is hit.
+///
 class GeodesicSolver
 {
-	const double SINGULARITY_BOUND = 1e-10;
+	static constexpr double SINGULARITY_BOUND = 1e-10;
 	unsigned int maxIterations;
 	double standardStep;
 
-	//filters some cases and prepares for solving
-	double PrehandlerRKTheta(double E, double L, double rStart,
-			bool rFalling, double schwarzR, double surfaceR)
+	///
+	/// @brief filters some cases for one light ray and prepares for solving
+	/// @param E 		Energy of the light ray
+	/// @param L 		Angular momentum of the light ray
+	/// @param rStart 	Starting distance
+	/// @param rFalling Wether the light ray goes inward or outward
+	/// @param schwarzR Radius of the black hole
+	/// @param surfaceR Radius of the texture sphere
+	/// @return The angle travelled to hit the texture sphere (or NO_VALUE)
+	///
+	double PrehandlerRKTheta(const double E, const double L, const double rStart,
+			const bool rFalling, const double schwarzR, const double surfaceR) const 
 	{
 		double b = E ? L / E : 1e20;
 		bool outside = rStart > schwarzR;
 		bool surfaceOutside = surfaceR > schwarzR;
 		bool innerView = rStart < surfaceR;
 
-		//If b = 0 no equations to solve
+		//If L = 0 no ODE to solve
 		if (L < SINGULARITY_BOUND)
 		{
-			if (!innerView)
-				if (surfaceOutside)
-					return rFalling ? 0 : RasterFunction180::NO_VALUE;
-				else
-					return RasterFunction180::NO_VALUE;
-			else
+			if (innerView)
 				if (outside)
 					return rFalling ? (schwarzR ? RasterFunction180::NO_VALUE : M_PI) : 0;
 				else
 					return surfaceOutside ?
-					(E > 0 ? 0 : RasterFunction180::NO_VALUE): 0;
+					(E > 0 ? 0 : RasterFunction180::NO_VALUE): /*The weirdest case*/0;
+			else
+				if (surfaceOutside)
+					return rFalling ? 0 : RasterFunction180::NO_VALUE;
+				else
+					return RasterFunction180::NO_VALUE;
 		}
+		//Energy requirement to leave the 3R/2 barrier
 		bool barrier3R_2 = schwarzR &&
 			1 / (b * b) < 4 / (27 * schwarzR * schwarzR);
+		//Wether r and surfaceR are on different sides of the 3R/2 barrier
 		bool differentSides3R_2 = ((rStart < 3 * schwarzR / 2) ^ (surfaceR < 3 * schwarzR / 2))
 			&& fabs(rStart - 3 * schwarzR / 2) > SINGULARITY_BOUND;
 		
@@ -52,12 +73,20 @@ class GeodesicSolver
 		double u = 1 / rStart;
 		double uBar = (rFalling ? 1 : -1) *
 			sqrt(1 / (b  * b) - (1 - schwarzR / rStart) / rStart / rStart);
-		if (fabs(uBar) < SINGULARITY_BOUND)
-			return RasterFunction180::NO_VALUE;
+		//if (fabs(uBar) < SINGULARITY_BOUND)
+		//	return RasterFunction180::NO_VALUE;
 		return RungeKuttaSolver(u, uBar, schwarzR, surfaceR);
 	}
 
-	double RungeKuttaSolver(double u, double uBar, double R, double surfaceR)
+	///
+	/// @brief Solves the orbit equation u'' + u = 3R/2 u^2 and calculates the intersection with the texture sphere
+	/// @param u 		initial inverted radius
+	/// @param uBar 	initial inverted radius derivative
+	/// @param R 		radius of black hole
+	/// @param surfaceR radius of texture sphere
+	/// @return Travelled angle until texture sphere is hit
+	///
+	double RungeKuttaSolver(const double u, const double uBar, const double R, const double surfaceR) const 
 	{
 
 		double bound = 0.9 * fmin(u, 1 / fmax(surfaceR, 2 * R));
@@ -74,9 +103,9 @@ class GeodesicSolver
 		double nextU, nextUBar, aU, aUBar, bU, bUBar, cU, cUBar;
 		double surfaceU = 1 / surfaceR;
 		unsigned int iteration = 0;
-		double solution = 0;
 
-		while ((!(R && currentU > 1 / R && currentUBar > 0)) && //check if the ray is inside B and r is falling
+		//While the ray didnt fall into the black hole or fly away
+		while ((!(R && currentU > 1 / R && currentUBar > 0)) && 
 			iteration < maxIterations && currentU > 0)
 		{
 			aU = currentU + stepHalf * currentUBar;
@@ -90,10 +119,12 @@ class GeodesicSolver
 			nextUBar = currentUBar + step * ((-currentU + R3_2 * currentU*currentU) / 6 +
 				(-aU + R3_2 * aU*aU) / 3 + (-bU + R3_2 * bU*bU) / 3 + (-cU + R3_2 * cU*cU) / 6);
 
-			//check if the ray has passed through the surface do some newton
+			//check if the ray has passed through the surface, then do some newton to find the precise cut.
+			//The Newton method works with the function of one RK4 step from the previous position
 			if ((nextU > surfaceU) ^ (u > surfaceU))
 			{
 				double value, derivitive, newtonStep;
+				//Start at side with larger slope
 				if (fabs(currentUBar) > fabs(nextUBar))
 				{
 					newtonStep = 0;
@@ -122,7 +153,7 @@ class GeodesicSolver
 					derivitive = currentUBar + newtonStep * ((-currentU + R3_2 * currentU*currentU) / 6 +
 						(-aU + R3_2 * aU*aU) / 3 + (-bU + R3_2 * bU*bU) / 3 + (-cU + R3_2 * cU*cU) / 6);
 				}
-				return angle + newtonStep; //+ step * ((surfaceU - u)/(nextU-u)); (for linear interpolation)
+				return angle + newtonStep;
 			}
 
 			//check if the ray leaves the relevant domain
@@ -138,25 +169,35 @@ class GeodesicSolver
 
 
 public:
-	//Nothing to do
-	GeodesicSolver(double step = M_PI / 100) :
+	///
+	/// @brief Initializes the class with a default step size
+	///
+	GeodesicSolver(const double step = M_PI / 100) :
 		maxIterations((int)(60/step)), standardStep(step)
 	{}
 
-	void solveGeodesic(double schwarzR, double r, 
-		double surfaceR, RasterFunction180 & raster)
+	///
+	/// @brief Calculates the endpoints on the texture sphere of the light ray fan defined by raster
+	/// @param schwarzR 	Radius of the black hole
+	/// @param r 			Distance to the black hole
+	/// @param surfaceR 	Radius of the texture sphere, where the light rays may hit
+	/// @param raster 		The raster object in which the results are saved
+	/// @note If a light ray falls into the black hole or escapes, then a NO_VALUE is saved
+	///
+	void solveGeodesic(const double schwarzR, const double r, 
+		const double surfaceR, RasterFunction180 & raster) const 
 	{
 		unsigned int nodes = raster.getNrNodes();
 		
-		//modified to run parallel
+		//designed to run parallel, but it was too fast for parallelization
 //#pragma omp parallel for
-		for(/*unsigned*/ int i = 0; i < nodes; i++)
+		for(unsigned int i = 0; i < nodes; i++)
 		{
 			double theta, L, E;
 			bool rFalling;
 			theta = raster.PositionOfNode(i);
 			L = r* cos(theta);
-			//for the future path of the light, note that the future path has -theta
+			//inside the black hole things get weird
 			if (r < schwarzR)
 			{
 				rFalling = false;

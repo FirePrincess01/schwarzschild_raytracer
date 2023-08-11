@@ -1,9 +1,18 @@
+///
+/// @file	DisplayHandler.h
+/// @author Cecilia
+/// @date 	3.2016
+///
+/// @copyright MIT Public Licence
+///
 #pragma once
 
 #define _USE_MATH_DEFINES
 #include <math.h>
 typedef double Vec2D[2];
 
+//Used to be responsible for handling the pixels of the display
+//Functionality moved to the shaders
 class DisplayHandler
 {
 	//determines the display
