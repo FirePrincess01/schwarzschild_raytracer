@@ -1,5 +1,11 @@
-#ifndef SPECTATOR_H_
-#define SPECTATOR_H_
+///
+/// @file	Spectator.h
+/// @author Cecilia
+/// @date 	3.2016
+///
+/// @copyright MIT Public Licence
+///
+#pragma once
 
 #include <math.h>
 #include "RotMatrix3D.h"
@@ -7,33 +13,53 @@
 #include "GeodesicSolver.h"
 #include "TransUtilities.h"
 #include "Orbit.h"
-#include "Benchmark.h"
+//#include "Benchmark.h"
 
+///
+/// @brief Represents the physical state of the simulation and stores essential calculation results
+/// Also responsible for the position of the observer
+/// 
 class Spectator
 {
+	//The four possible states for the simulation
+	//	SCHWARZSCHILD is an observer with no velocity in space, base to render the other modes (note unintuitive behavior within the event horizon)
+	//	FREE_FALLING simulates a frozen snapshot of the observer falling from far away with free choice of position
+	//	FIXED_FALLING simulates a fall in real time
+	//	FIXED_ORBIT siluates an orbit in real time
 	enum SpectatorMode { SCHWARZSCHILD, FREE_FALLING, FIXED_FALLING, FIXED_ORBIT };
-	const double MOVEMENT_STEP = .1001;
-	const double VERTICAL_RESTRICTION = M_PI_2 - 0.01;
-	const double SINGULARITY_BOUND = 1e-10;
+	SpectatorMode mode;										//Active Spectator mode
+	const double MOVEMENT_STEP = .0501;						//movement speed for user controls in euclidean space
+	const double VERTICAL_RESTRICTION = M_PI_2 - 0.01;		//camera constraint
+	const double SINGULARITY_BOUND = 1e-10;					//Stop the simulation in a surrounding of singular points
 
 	//Information
-	Vec3D position, movement; //(r, phi, theta), (t, r, phi)
-	Vec2D camera; //sphere-polar
-	double E, schwarzR, surfaceR, tau, timeStep;
-	bool surfaceBounce, rFalling;
-	SpectatorMode mode;
+	Vec3D position;		//Observer position in polar(r, phi, theta) coordinates 
+	Vec3D velocity;		//Velocity of the observer in 4D space-time, restricted to the orbit plane (t, r, phi)
+	Vec2D camera; 		//polar direction of camera
+	double E;			//Energy of the Observer
+	double schwarzR;	//Black hole Schwarzschild radius
+	double surfaceR;	//Radius of the texture sphere
+	double tau;			//Subjective time
+	double timeStep;	//Step size for the simulation
+	bool rFalling;		//Wether the observer moves towards the black hole
+	bool surfaceBounce;	//Allows to elastically bounce off the texture sphere
+	
 
-	//dependend output values
-	RasterFunction180 geodesics;
-	RotMatrix3D displayToMovement, movementToAxis, axisToSurface;
-	double psi;
+	//output variables
+	//Very involved transformations, explained in Bachelor thesis
+	RasterFunction180 geodesics;	//Stores where light rays hit the texture sphere depending on the direction
+	RotMatrix3D displayToMovement;	//Rotates from a display oriented system into one aligned with the direction of movement
+	RotMatrix3D movementToAxis;		//Further rotates towards the center of the black holes
+	RotMatrix3D axisToSurface;		//Rotates on the texture sphere towards the texture coordinates
+	double psi;						//parameter to perform the velocity abberation
 
-	//depending values
-	Vec3D carthesicPosition;
-	bool singularityFlag, r0Reached;
+	//dependent values
+	Vec3D carthesicPosition;		//observer position in carthesic coordinates
+	bool singularityFlag;			//If the system is singular
+	bool r0Reached;					//If close to the true singularity of r=0
 
-	//variables for the central falling verlet solver
-	double lastR, nextR;
+	
+	double lastR, nextR;			//variables for the central falling verlet solver
 
 	//Parts of displayToMovement
 	RotMatrix3D yXRotator, displayToStandard,
@@ -46,13 +72,15 @@ class Spectator
 	RotMatrix3D yInverse;
 
 	//Utilities
-	GeodesicSolver solver;
-	TransUtilities matUtil;
-	Orbit orbit;
+	GeodesicSolver solver;		//solves the light ray traces
+	TransUtilities matUtil;		//Matrix manipulations
+	Orbit orbit;				//Represents the orbit the observer is on
 	//Benchmark* geodesicBench,* matricesBench;
 
 
-	//Checks if the system is singular and saves to the flags
+	///
+	/// @brief Checks if the system is singular and sets the flags
+	///
 	void singularityChecks()
 	{
 		r0Reached = schwarzR && position[0] / schwarzR < SINGULARITY_BOUND;
@@ -62,44 +90,55 @@ class Spectator
 			rFalling = true;
 	}
 
-	//calculates h(r), view script for info
+	///
+	/// @brief h(r) is a commonly needed quantity
+	///
 	double h()
 	{
 		return 1 - schwarzR / position[0];
 	}
 
-	//saves a Schwarzschild spectator
-	void schwarzschildSpectator(Vec3D & spectator)
+	///
+	/// @brief calculates the velocity in the "non moving" mode
+	///
+	void schwarzschildSpectator()
 	{
+		//outside only velocity in t direction
 		if (position[0] > schwarzR)
 		{
-			spectator[0] = 1 / sqrt(h());
-			spectator[1] = 0;
+			velocity[0] = 1 / sqrt(h());
+			velocity[1] = 0;
 		}
+		//inside only velocity in -r direction (the future)
 		else
 		{
-			spectator[0] = 0;
-			spectator[1] = -1 * sqrt(-h());
+			velocity[0] = 0;
+			velocity[1] = -1 * sqrt(-h());
 		}
-		spectator[2] = 0;
+		velocity[2] = 0;
 	}
 
-	//saves a central falling spectator
-	//if the distance is to high for the given Energy, it saves a Schwarzschild spectator
-	void centralFallingSpectator(Vec3D & spectator)
+	///
+	/// @brief calculates the velocity if the observer is falling without angular velocity
+	/// If the distance is higher than the start of the fall, it defaults to no movement
+	///
+	void centralFallingSpectator()
 	{
 		if (position[0] == schwarzR)
 			return;
 		if (E * E < h())
-			return schwarzschildSpectator(spectator);
-		spectator[0] = E / h();
-		spectator[1] = -sqrt(E * E - h()) * (rFalling ? 1 : -1);
-		spectator[2] = 0;
+			return schwarzschildSpectator();
+		velocity[0] = E / h();
+		velocity[1] = -sqrt(E * E - h()) * (rFalling ? 1 : -1);
+		velocity[2] = 0;
 	}
 
-	//input x, y, up with respect to the camera
-	//x, y stay in the horizontal plane
-	void doStep(Vec3D & desiredDirection)
+	///
+	/// @brief Adjusts the position according to user inputs or the simulation depending on mode
+	/// @param desiredDirection First two coordinates determine movement in the horizontal plane wrt. the camera
+	///							Last coordinate is movement along the absolute vertical axis
+	///
+	void doStep(const Vec3D & desiredDirection)
 	{
 		switch (mode)
 		{
@@ -127,8 +166,9 @@ class Spectator
 		singularityChecks();
 	}
 
-	//Performs one time step for a central falling spectator.
-	//This is done by Verlet integration.
+	///
+	/// @brief Performs one time step for falling spectator without angular velocity with Verlet integration
+	///
 	void doCentralVerletStep()
 	{
 		nextR = 2 * position[0] - lastR - timeStep * timeStep * schwarzR /
@@ -138,20 +178,22 @@ class Spectator
 		tau += timeStep;
  	}
 
-	//updates the spectator (movement) for the new data
+	///
+	/// @brief updates velocity according to new position
+	///
 	void updateSpectator()
 	{
 		switch (mode)
 		{
 		case SCHWARZSCHILD:
-			schwarzschildSpectator(movement);
+			schwarzschildSpectator();
 			break;
 		case FIXED_FALLING:
 		case FREE_FALLING:
-			centralFallingSpectator(movement);
+			centralFallingSpectator();
 			break;
 		case FIXED_ORBIT:
-			orbit.readOrbitSpectator(movement);
+			orbit.readOrbitSpectator(velocity);
 			break;
 		default:
 			;
@@ -160,10 +202,21 @@ class Spectator
 public:
 	//TODO , , , modeChangers, getters,
 
-	//Constructor, initializes important components
-	Spectator(unsigned int rasterResolution = 2000,	double step = M_PI / 100) :
-		geodesics(rasterResolution), position(), movement(),
-		orbit(&position, &movement), solver(step)
+	///
+	/// @brief Constructor, initializes important components
+	/// @param rasterResolution number of light rays
+	/// @param step step size in the light ray simulation
+	/// @param inPosition The starting position for the observer
+	/// @param inSchwarzR The Schwarzschild radius
+	/// @param inSurfaceR Radius of the texture-sphere
+	/// @param phi, theta initial camera orientation
+	/// @param inTimeStep simulation speed
+	/// @param inBounce If the observer should bounce off the texture-sphere
+	///
+	Spectator(unsigned int rasterResolution, double step, Vec3D inPosition, double inSchwarzR, double inSurfaceR, double phi = M_PI,
+		double theta = 0, double inTimeStep = 1./60, bool inBounce = false) :
+		geodesics(rasterResolution), position(), velocity(),
+		orbit(&position), solver(step)
 	{
 		position[0] = 10;
 		surfaceBounce = false;
@@ -177,15 +230,7 @@ public:
 		Vec3D third = { 0,0,1 };
 		yXRotator = RotMatrix3D(first, second, third);
 		yInverse = RotMatrix3D(second, first, third);
-	}
 
-	//Nothing to do
-	~Spectator() {}
-
-	//Sets all necessary parameters, adviced to call before doing anything
-	void init(Vec3D inPosition, double inSchwarzR, double inSurfaceR, double phi,
-		double theta = 0, double inTimeStep = 1./60, bool inBounce = false)
-	{
 		setPositionRadius(inPosition, inSchwarzR);
 		setSurfaceRadius(inSurfaceR);
 		setCamera(phi, theta);
@@ -193,15 +238,13 @@ public:
 		setBounce(inBounce);
 	}
 
-	//initialices the Benchmarks
-	//void initBenchmarks(Benchmark* geoBench, Benchmark* matBench)
-	//{
-	//	geodesicBench = geoBench;
-	//	matricesBench = matBench;
-	//}
+	//Destructor has nothing to do
+	~Spectator() {}
 
-	//initializes or changes the components that may cause singularities
-	void setPositionRadius(Vec3D inPosition, double inSchwarzR)
+	///
+	/// @brief sets a position and the Schwarzschild radius
+	///
+	void setPositionRadius(const Vec3D inPosition, const double inSchwarzR)
 	{
 		position[0] = fabs(inPosition[0]);
 		position[1] = inPosition[1];
@@ -210,34 +253,59 @@ public:
 		singularityChecks();
 	}
 
-	//Modifies the radius of the glowing sphere
-	void setSurfaceRadius(double inSurfaceR) { surfaceR = inSurfaceR; }
 
-	//Sets where the spectator is looking
-	void setCamera(double phi, double theta)
+	///
+	/// @brief Sets the radius of the texture-sphere
+	///
+	void setSurfaceRadius(const double inSurfaceR) { surfaceR = inSurfaceR; }
+
+	///
+	/// @brief Sets the camera orientation
+	///
+	void setCamera(const double phi, const double theta)
 	{
 		camera[0] = phi;
 		camera[1] = theta;
 	}
 
-	//Sets the speed of the simulation
-	void setPace(double inTimeStep) { timeStep = inTimeStep; }
+	///
+	/// @brief Sets the speed of the simulation
+	///
+	void setPace(const double inTimeStep) { timeStep = inTimeStep; }
 
-	//determines if a fixed falling spectator should bounce off the surface
-	void setBounce(bool inBounce) { surfaceBounce = inBounce; }
+ 	///
+	/// @brief Sets if a fixed falling spectator should bounce off the texture-sphere
+	///
+	void setBounce(const bool inBounce) { surfaceBounce = inBounce; }
 
-	bool isSingular() { return singularityFlag; }
+	///
+	/// @brief Returns if the simulation is at a singular point
+	///
+	bool isSingular() const { return singularityFlag; }  
 
-	void startOrbit(double inL)
+	///
+	/// @brief Starts a new orbit from the current position
+	/// @param inL The angular momentum for the orbit
+	///
+	void startOrbit(const double inL)
 	{
 		Vec3D direction = { -sin(position[1]),cos(position[1]),0 };
-		orbit.initNewOrbit(direction, inL, schwarzR);
-		mode = FIXED_ORBIT;
+		bool success = orbit.initNewOrbit(direction, inL, schwarzR);
+		if(success)
+		{
+			mode = FIXED_ORBIT;
+			cout << "The orbit is " << orbit.isStable() << endl;
+		}
+		else
+			cout << "Cannot initialize orbit within the black hole." << endl;
 	}
 
-	//Enters a mode, where the user can move freely and sees,
-	//what a spectator would see, who started falling at the specified height
-	//Use no argument to start from where you are
+	///
+	/// @brief enters the FREE_FALLING mode, see SpectatorMode for details
+	/// @param startOfFall The distance from the black hole, from where the fall started.
+	///					   By default the current position.
+	///					   Needs to be outside the event horizon
+	///
 	void startFreeFall(double startOfFall = 0)
 	{
 		if (startOfFall == 0)
@@ -249,6 +317,10 @@ public:
 		rFalling = true;
 	}
 
+	///
+	/// @brief Starts a simulated fall from the current position.
+	/// 		Current position needs to be outside the event horizon
+	///
 	void startFixedFall()
 	{
 		if (position[0] <= schwarzR * (1 + SINGULARITY_BOUND))
@@ -256,21 +328,25 @@ public:
 		mode = FIXED_FALLING;
 		E = sqrt(h());
 		lastR = position[0];
-		position[0] = lastR - timeStep * timeStep * schwarzR /
+		position[0] = lastR - timeStep * timeStep * schwarzR /	//Verlet scheme initializing
 			(4 * lastR * lastR);
 		tau += timeStep;
 		singularityChecks();
 	}
 
-	//Switches to schwarzschildMode
+	///
+	/// @brief Switches to the mode without velocity in space
+	///
 	void schwarzschildMode()
 	{
 		mode = SCHWARZSCHILD;
 	}
 
-	//Advances some time steps without rendering images inbetween
-	//Only effective in fixed modes
-	void advanceInTime(unsigned int numberOfSteps)
+	///
+	/// @brief Fast forwards the position simulation without rendering
+	/// @param numberOfSteps The amount of timesteps to skip
+	///
+	void advanceInTime(const unsigned int numberOfSteps)
 	{
 		if (mode == FREE_FALLING || mode == SCHWARZSCHILD)
 			return;
@@ -279,14 +355,16 @@ public:
 			doStep(dummy);
 	}
 
-	//Performs all calculations to advance one step in time 
-	//and prepares all transformation parameters/matrices
-	void prepare(Vec3D & desiredDirection)
+	///
+	/// @brief Performs all calculations to advance one step in time and prepares all transformation parameters/matrices
+	/// @param desiredDirection Input to move the camera, see doStep()
+	///
+	void prepare(const Vec3D & desiredDirection)
 	{
 		//updating the position
 		doStep(desiredDirection);
 		
-		//Stop optical calculations if we are singular, only update the camera
+		//Stop optical calculations if the position is singular, only update the camera
 		if (singularityFlag)
 		{
 			matUtil.yieldTransMatrix(camera, displayToStandard);
@@ -299,22 +377,13 @@ public:
 			return;
 		}
 			
-
-		//updates "movement" for further calculations
+		//updates velocity for further calculations
 		updateSpectator();
 		
 		//Solving the geodesics for the Schwarzschild spectator
-		//if(geodesicBench != nullptr)
-		//	geodesicBench->startMeasurement();
 		solver.solveGeodesic(schwarzR, position[0], surfaceR, geodesics);
-		//if (geodesicBench != nullptr)
-		//	geodesicBench->stopMeasurement();
-		//geodesics.Print(cout);
 
-
-		//Calculating some matrices
-		//if (matricesBench != nullptr)
-		//	matricesBench->startMeasurement();
+		//Calculating transformation matrices
 		matUtil.yieldTransMatrix(camera, displayToStandard);
 
 		Vec2D axis = { position[1], position[2] };
@@ -325,26 +394,26 @@ public:
 		standardToAxis.transpose();
 
 		double r = position[0];
+		//Angle between central vector and direction of movement in two different frames of reference
 		double planeAngle1, planeAngle2;
 		
-		
-		psi = r > schwarzR ? movement[0] * movement[0] * h()
-			: -movement[1] * movement[1] / h();
+		//Calculate velocity abberation factor relative to default/Schwarzschild observer
+		psi = r > schwarzR ? velocity[0] * velocity[0] * h()
+			: -velocity[1] * velocity[1] / h();
 		if ((psi - 1) < SINGULARITY_BOUND)
 			psi = 1;
-		//cout << r << endl;
 		if (mode == FIXED_ORBIT)
 		{
-			planeAngle1 = acos(-movement[0] * movement[1] * (r > schwarzR ? 1 : -1) /
-				sqrt((1 + r*r*movement[2] * movement[2]) * (psi * (psi - 1))));
+			planeAngle1 = acos(-velocity[0] * velocity[1] * (r > schwarzR ? 1 : -1) /
+				sqrt((1 + r*r*velocity[2] * velocity[2]) * (psi * (psi - 1))));
 			if (r > schwarzR)
 			{
 				
-				planeAngle2 = acos(-movement[1] / sqrt((psi -1) * h()));
+				planeAngle2 = acos(-velocity[1] / sqrt((psi -1) * h()));
 			}
 			else
 			{
-				planeAngle2 = acos(-movement[0] * sqrt(-h() / (psi - 1)));
+				planeAngle2 = acos(-velocity[0] * sqrt(-h() / (psi - 1)));
 			}
 			matUtil.yieldTiltMatrix(orbit.tiltCorrectionAngle(), orbitPlaneTilt);
 			matUtil.yieldPlaneRotMatrix(planeAngle1, tiltedAxisToMovement1);
@@ -357,6 +426,7 @@ public:
 			movementToTiltedAxis2.setToIdentity();
 		}
 		orbitPlaneUntilt = orbitPlaneTilt;
+		//Invert rotations by transposing
 		orbitPlaneUntilt.transpose();
 		movementToTiltedAxis2.transpose();
 
@@ -373,48 +443,35 @@ public:
 		movementToAxis.multiplyOnto(orbitPlaneUntilt);
 		movementToAxis.multiplyOnto(movementToTiltedAxis2);
 
-		//Correction on Sphere
+		//Adjusting for inverted y-coordinate
 		axisToSurface.multiplyOnto(yInverse);
-		
-		//if (matricesBench != nullptr)
-		//	matricesBench->stopMeasurement();
 	}
 
-	//Turns the camera by specified directions
-	void controlCamera(double horizontalAngle, double verticalAngle)
+	///
+	/// @brief Turns the camera by specified directions
+	/// @note Angles in radiant
+	///
+	void controlCamera(const double horizontalAngle, const double verticalAngle)
 	{
 		camera[0] += horizontalAngle;
 		camera[1] += verticalAngle;
-		//Make sure not to turn over singular point
+		//Limit vertical camera angle
 		camera[1] = fmin(fmax(camera[1], -VERTICAL_RESTRICTION), VERTICAL_RESTRICTION);
-		//Prevent too big values
+		//Truncate large angles
 		if (fabs(camera[0]) > 15)
-			camera[0] = asin(sin(camera[0]));
+			camera[0] = fmod(camera[0], 2*M_PI);
 	}
 
-	//Writes results to the arguments
-	void outputResults(float* firstTransform, float* secondTransform,
-		float* thirdTransform, double & psiRef, float* geodesicsTrans)
+	///
+	/// @brief Outputs all the raw parameters to be used in the transformation pipeline (on the GPU)
+	///
+	void outputResults(float* firstMatrix, float* secondMatrix,
+		float* thirdMatrix, double & psiOut, float* lightRayRaster) const 
 	{
-		displayToMovement.toFloatArray(firstTransform);
-		movementToAxis.toFloatArray(secondTransform);
-		axisToSurface.toFloatArray(thirdTransform);
-		psiRef = psi;
-		geodesics.toFloatArray(geodesicsTrans);
+		displayToMovement.toFloatArray(firstMatrix);
+		movementToAxis.toFloatArray(secondMatrix);
+		axisToSurface.toFloatArray(thirdMatrix);
+		psiOut = psi;
+		geodesics.toFloatArray(lightRayRaster);
 	}
 };
-
-#endif // !SPECTATOR_H_
-
-
-/*
-	static void normSpectator(double R, double r, Vec2D spectator)
-	{
-		double normSquare = -spectator[0] * spectator[0] * h(R, r) +
-			spectator[1] * spectator[1] / h(R, r);
-		if (normSquare >= 0)
-			cout << "Error: not a timelike Spectator" << endl;
-		spectator[0] /= sqrt(-normSquare);
-		spectator[1] /= sqrt(-normSquare);
-	}*/
-

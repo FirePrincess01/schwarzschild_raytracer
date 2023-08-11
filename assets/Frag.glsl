@@ -1,3 +1,10 @@
+///
+/// @file	Frag.glsl
+/// @author Cecilia
+/// @date 	3.2016
+///
+/// @copyright MIT Public Licence
+///
 #version 330
 
 	//in vec4 v_Color;
@@ -31,7 +38,10 @@
 	void interpolatedValue(inout float x)
 	{
 	    x = (M_PI_2 - x) / M_PI_2 / 2.;
-			x = texture(rasterTex, x).x;
+		//float nrRays = textureSize(rasterTex, 0);		//attempted to fix the way interpolation works
+		//x = x*(nrRays - 1.) / nrRays + 1. / (2.*nrRays);
+		x = texture(rasterTex, x).x;
+
 	}
 
 	void main(void)
@@ -46,6 +56,7 @@
 		carthesic = first * carthesic;
 		toPolar(carthesic, displayP);
 
+		//Special relativistic velocity abberation
 		float sinResult = sin(displayP[1]);
 		displayP[1] = asin((sinResult - beta) / (1 - beta * sinResult));
 
@@ -53,7 +64,9 @@
 		carthesic = second * carthesic;
 		toPolar(carthesic, displayP);
 
+		//Light ray tracing with spherical symmetry
 		interpolatedValue(displayP[1]);
+		//Either too many rotations around the black hole or NO_VALUE
 		bool isOnSurface = (displayP[1] > -10.);
 
 		toCart(displayP, carthesic);

@@ -1,11 +1,17 @@
-#ifndef BENCHMARK_H_
-#define BENCHMARK_H_
+///
+/// @file	RotMatrix3D.h
+/// @author Cecilia
+/// @date 	3.2016
+///
+/// @copyright MIT Public Licence
+///
 #pragma once
  
 #include <omp.h>
 #include <string>
 #include <ostream>
 
+//Custom writen Benchmark class for profiling, no longer used
 class Benchmark
 {
 	double startTime;
@@ -39,7 +45,4 @@ public:
 	}
 
 };
-
-
-#endif //! BENCHMARK_H_
 
